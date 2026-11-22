@@ -1,6 +1,7 @@
 package rss
 
 import (
+	"bytes"
 	"context"
 	"encoding/xml"
 	"errors"
@@ -171,14 +172,17 @@ func (f *Fetcher) fetchOne(ctx context.Context, feedURL string) ([]Article, erro
 
 // ParseFeed parses RSS 2.0 XML bytes into a slice of Articles.
 func ParseFeed(data []byte, fallbackSource string, maxItems int) ([]Article, error) {
+	// Strip UTF-8 BOM if present (e.g. Met Éireann warnings XML).
+	data = bytes.TrimPrefix(data, []byte{0xEF, 0xBB, 0xBF})
+
 	var doc rssDocument
 	if err := xml.Unmarshal(data, &doc); err != nil {
 		return nil, fmt.Errorf("xml unmarshal: %w", err)
 	}
 
-	source := cleanText(doc.Channel.Title)
-	if source == "" || strings.EqualFold(source, "News Headlines") || strings.EqualFold(source, "Irish Times Feeds") {
-		source = fallbackSource
+	source := fallbackSource
+	if source == "" {
+		source = cleanText(doc.Channel.Title)
 	}
 
 	limit := len(doc.Channel.Items)
@@ -220,11 +224,22 @@ func inferSourceName(rawURL string) string {
 		return rawURL
 	}
 	host := strings.ToLower(strings.TrimPrefix(u.Hostname(), "www."))
+	lowerURL := strings.ToLower(rawURL)
 	switch {
+	case strings.Contains(host, "met.ie"):
+		return "Met Éireann 気象警報"
+	case strings.Contains(host, "rte.ie") && strings.Contains(lowerURL, "/news/dublin"):
+		return "RTÉ Dublin"
+	case strings.Contains(host, "rte.ie") && strings.Contains(lowerURL, "/news/ireland"):
+		return "RTÉ Ireland"
 	case strings.Contains(host, "rte.ie"):
 		return "RTÉ News"
+	case strings.Contains(host, "breakingnews.ie"):
+		return "BreakingNews.ie"
 	case strings.Contains(host, "thejournal.ie"):
 		return "TheJournal.ie"
+	case strings.Contains(host, "dublinlive.ie"):
+		return "Dublin Live"
 	case strings.Contains(host, "irishtimes.com"):
 		return "The Irish Times"
 	default:

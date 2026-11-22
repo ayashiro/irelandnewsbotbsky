@@ -20,9 +20,12 @@ const (
 )
 
 var DefaultRSSFeeds = []string{
-	"https://www.rte.ie/news/rss/news-headlines.xml",
+	"https://www.met.ie/warningsxml/rss.xml",
+	"https://www.rte.ie/feeds/rss/?index=/news/ireland/",
+	"https://www.rte.ie/feeds/rss/?index=/news/dublin/",
+	"https://www.breakingnews.ie/feed/ireland.rss",
 	"https://www.thejournal.ie/feed/",
-	"https://www.irishtimes.com/arc/outboundfeeds/digest-resolver/homepage-top/?from=0&size=15",
+	"https://www.dublinlive.ie/news/?service=rss",
 }
 
 // Config holds all runtime settings loaded from environment variables.

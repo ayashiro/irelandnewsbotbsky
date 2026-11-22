@@ -47,6 +47,16 @@ func TestParseFeed(t *testing.T) {
 	if articles[0].PublishedAt.IsZero() {
 		t.Errorf("expected non-zero PublishedAt")
 	}
+
+	// Verify UTF-8 BOM handling (e.g. Met Éireann warnings feed).
+	bomRSS := append([]byte{0xEF, 0xBB, 0xBF}, []byte(sampleRSS)...)
+	bomArticles, err := ParseFeed(bomRSS, "Met Éireann 気象警報", 10)
+	if err != nil {
+		t.Fatalf("ParseFeed with UTF-8 BOM failed: %v", err)
+	}
+	if len(bomArticles) != 2 || bomArticles[0].Source != "Met Éireann 気象警報" {
+		t.Errorf("unexpected BOM parse result: %+v", bomArticles)
+	}
 }
 
 func TestFetchAllPartialFailure(t *testing.T) {
