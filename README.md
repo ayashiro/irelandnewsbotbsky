@@ -6,6 +6,7 @@
 
 - **ニュース取得 ([rss.go](internal/rss/rss.go))**: アイルランド在住者の生活に密着した6ソース（Met Éireann 気象警報 / RTÉ Ireland / RTÉ Dublin / BreakingNews.ie Ireland / TheJournal.ie / Dublin Live）の RSS を並列取得・重複排除
 - **日本語要約 ([gemini.go](internal/gemini/gemini.go))**: Gemini API (`gemini-4-hydrogen`) で3〜4件のヘッドラインを作成（Bluesky の 300 grapheme 制限を超えた場合は自動で再生成・短縮）
+- **プロンプト管理 ([prompts/system.txt](prompts/system.txt), [prompts/user.txt](prompts/user.txt))**: Go の `//go:embed` でバイナリに埋め込み。トーンや選別ルールの調整はこれらのテキストファイルを編集するだけでOK
 - **Bluesky 投稿 ([bluesky.go](internal/bluesky/bluesky.go))**: AT Protocol (`createSession` / `createRecord`) で投稿。日本語ハッシュタグの UTF-8 バイトオフセット Facet を自動付与
 - **定期実行 ([setup-gcp.sh](deploy/setup-gcp.sh))**: GCP Cloud Run Jobs + Cloud Scheduler (`0 8 * * *` / `Europe/Dublin`) + Secret Manager
 
