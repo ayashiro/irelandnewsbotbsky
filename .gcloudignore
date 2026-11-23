@@ -1,8 +1,0 @@
-.git
-.gitignore
-.env
-.env.*
-!.env.example
-deploy/
-README.md
-*.log
