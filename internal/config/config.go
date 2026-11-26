@@ -11,6 +11,7 @@ import (
 )
 
 const (
+	DefaultClaudeModel    = "claude-sonnet-5-5"
 	DefaultGeminiModel    = "gemini-4-hydrogen"
 	DefaultBlueskyPDSHost = "https://bsky.social"
 	DefaultTimezone       = "Europe/Dublin"
@@ -30,6 +31,9 @@ var DefaultRSSFeeds = []string{
 
 // Config holds all runtime settings loaded from environment variables.
 type Config struct {
+	LLMProvider        string // "claude" or "gemini"
+	AnthropicAPIKey    string
+	ClaudeModel        string
 	GeminiAPIKey       string
 	GeminiModel        string
 	BlueskyHandle      string
@@ -130,8 +134,26 @@ func Load(dryRunFlag, rssOnlyFlag bool) (*Config, error) {
 		hashtags = strings.TrimSpace(raw)
 	}
 
+	anthropicKey := strings.TrimSpace(os.Getenv("ANTHROPIC_API_KEY"))
+	if anthropicKey == "" {
+		anthropicKey = strings.TrimSpace(os.Getenv("CLAUDE_API_KEY"))
+	}
+	geminiKey := strings.TrimSpace(os.Getenv("GEMINI_API_KEY"))
+
+	provider := strings.ToLower(strings.TrimSpace(os.Getenv("LLM_PROVIDER")))
+	if provider == "" {
+		if anthropicKey != "" {
+			provider = "claude"
+		} else {
+			provider = "gemini"
+		}
+	}
+
 	cfg := &Config{
-		GeminiAPIKey:       strings.TrimSpace(os.Getenv("GEMINI_API_KEY")),
+		LLMProvider:        provider,
+		AnthropicAPIKey:    anthropicKey,
+		ClaudeModel:        getEnvOrDefault("CLAUDE_MODEL", DefaultClaudeModel),
+		GeminiAPIKey:       geminiKey,
 		GeminiModel:        getEnvOrDefault("GEMINI_MODEL", DefaultGeminiModel),
 		BlueskyHandle:      strings.TrimPrefix(strings.TrimSpace(os.Getenv("BLUESKY_HANDLE")), "@"),
 		BlueskyAppPassword: strings.TrimSpace(os.Getenv("BLUESKY_APP_PASSWORD")),
@@ -145,9 +167,21 @@ func Load(dryRunFlag, rssOnlyFlag bool) (*Config, error) {
 		DryRun:             dryRun,
 	}
 
-	if !rssOnlyFlag && cfg.GeminiAPIKey == "" {
-		return nil, errors.New("GEMINI_API_KEY is required")
+	if !rssOnlyFlag {
+		switch cfg.LLMProvider {
+		case "claude":
+			if cfg.AnthropicAPIKey == "" {
+				return nil, errors.New("ANTHROPIC_API_KEY (or CLAUDE_API_KEY) is required when LLM_PROVIDER=claude")
+			}
+		case "gemini":
+			if cfg.GeminiAPIKey == "" {
+				return nil, errors.New("GEMINI_API_KEY is required when LLM_PROVIDER=gemini")
+			}
+		default:
+			return nil, fmt.Errorf("unsupported LLM_PROVIDER %q (supported: claude, gemini)", cfg.LLMProvider)
+		}
 	}
+
 	if !rssOnlyFlag && !cfg.DryRun {
 		if cfg.BlueskyHandle == "" {
 			return nil, errors.New("BLUESKY_HANDLE is required unless DRY_RUN is enabled")

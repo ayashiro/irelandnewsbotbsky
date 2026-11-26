@@ -11,13 +11,13 @@ import (
 
 	"news_bot/internal/bluesky"
 	"news_bot/internal/config"
-	"news_bot/internal/gemini"
+	"news_bot/internal/llm"
 	"news_bot/internal/rss"
 )
 
 func main() {
 	dryRun := flag.Bool("dry-run", false, "Fetch RSS and generate summary without posting to Bluesky")
-	rssOnly := flag.Bool("rss-only", false, "Fetch and print RSS headlines only (no Gemini or Bluesky API calls)")
+	rssOnly := flag.Bool("rss-only", false, "Fetch and print RSS headlines only (no LLM or Bluesky API calls)")
 	flag.Parse()
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
@@ -48,6 +48,7 @@ func run(ctx context.Context, cfg *config.Config, rssOnly bool) error {
 		"local_time", nowLocal.Format(time.RFC3339),
 		"timezone", cfg.Timezone,
 		"feeds", len(cfg.RSSFeeds),
+		"provider", cfg.LLMProvider,
 		"dry_run", cfg.DryRun,
 	)
 
@@ -68,19 +69,28 @@ func run(ctx context.Context, cfg *config.Config, rssOnly bool) error {
 		return nil
 	}
 
-	gemClient := gemini.NewClient(cfg.GeminiAPIKey, cfg.GeminiModel)
-	postText, err := gemClient.SummarizeHeadlines(ctx, articles, nowLocal, cfg.Hashtags)
-	if err != nil {
-		return fmt.Errorf("summarize with Gemini: %w", err)
+	var gen llm.TextGenerator
+	switch cfg.LLMProvider {
+	case "claude":
+		gen = llm.NewClaudeClient(cfg.AnthropicAPIKey, cfg.ClaudeModel)
+	default:
+		gen = llm.NewGeminiClient(cfg.GeminiAPIKey, cfg.GeminiModel)
 	}
 
-	graphemes := gemini.GraphemeCount(postText)
-	slog.Info("generated post text", "graphemes", graphemes, "model", cfg.GeminiModel)
+	summarizer := llm.NewSummarizer(gen)
+	postText, err := summarizer.SummarizeHeadlines(ctx, articles, nowLocal, cfg.Hashtags)
+	if err != nil {
+		return fmt.Errorf("summarize with %s: %w", gen.ProviderName(), err)
+	}
+
+	graphemes := llm.GraphemeCount(postText)
+	slog.Info("generated post text", "graphemes", graphemes, "provider", gen.ProviderName(), "model", gen.ModelName())
 
 	if cfg.DryRun {
 		fmt.Println("========== DRY RUN POST ==========")
 		fmt.Println(postText)
-		fmt.Printf("==================================\n(%d / %d graphemes)\n", graphemes, bluesky.MaxPostGraphemes)
+		fmt.Printf("==================================\n(%d / %d graphemes, %s/%s)\n",
+			graphemes, bluesky.MaxPostGraphemes, gen.ProviderName(), gen.ModelName())
 		return nil
 	}
 
